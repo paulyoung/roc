@@ -1,8 +1,8 @@
 #![allow(clippy::manual_map)]
 
 use crate::layout::{
-    Builtin, CapturesNiche, ClosureCallOptions, ClosureRepresentation, LambdaName, LambdaSet,
-    Layout, LayoutCache, LayoutProblem, RawFunctionLayout, TagIdIntType, UnionLayout,
+    Builtin, CapturesNiche, ClosureCallOptions, ClosureRepresentation, EnumDispatch, LambdaName,
+    LambdaSet, Layout, LayoutCache, LayoutProblem, RawFunctionLayout, TagIdIntType, UnionLayout,
     WrappedVariant,
 };
 use bumpalo::collections::{CollectIn, Vec};
@@ -3262,23 +3262,10 @@ fn specialize_external<'a>(
                             );
                         }
 
-                        ClosureRepresentation::MultiDispatch(layout) => match layout {
-                            Layout::Builtin(Builtin::Bool) => {
-                                // just ignore this value, since it's not a capture
-                                // IDEA don't pass this value in the future
-                            }
-                            Layout::Builtin(Builtin::Int(IntWidth::U8)) => {
-                                // just ignore this value, since it's not a capture
-                                // IDEA don't pass this value in the future
-                            }
-                            other => {
-                                // NOTE other values always should be wrapped in a 1-element record
-                                unreachable!(
-                                    "{:?} is not a valid closure data representation",
-                                    other
-                                )
-                            }
-                        },
+                        ClosureRepresentation::EnumDispatch(_) => {
+                            // just ignore this value, since it's not a capture
+                            // IDEA don't pass this value in the future
+                        }
                     }
                 }
                 (None, CapturedSymbols::None) | (None, CapturedSymbols::Captured([])) => {}
@@ -5441,8 +5428,8 @@ where
                 hole,
             )
         }
-        ClosureRepresentation::MultiDispatch(layout) => match layout {
-            Layout::Builtin(Builtin::Bool) => {
+        ClosureRepresentation::EnumDispatch(repr) => match repr {
+            EnumDispatch::Bool => {
                 debug_assert_eq!(symbols.len(), 0);
 
                 debug_assert_eq!(lambda_set.set.len(), 2);
@@ -5451,7 +5438,7 @@ where
 
                 Stmt::Let(assigned, expr, lambda_set_layout, hole)
             }
-            Layout::Builtin(Builtin::Int(IntWidth::U8)) => {
+            EnumDispatch::U8 => {
                 debug_assert_eq!(symbols.len(), 0);
 
                 debug_assert!(lambda_set.set.len() > 2);
@@ -5463,9 +5450,6 @@ where
                 let expr = Expr::Literal(Literal::Byte(tag_id));
 
                 Stmt::Let(assigned, expr, lambda_set_layout, hole)
-            }
-            layout => {
-                internal_error!("Invalid layout for multi-dispatch closure: {:?}", layout)
             }
         },
     };
@@ -9221,8 +9205,8 @@ where
 
             build_call(env, call, assigned, return_layout, env.arena.alloc(hole))
         }
-        ClosureCallOptions::MultiDispatch(layout) => match layout {
-            Layout::Builtin(Builtin::Bool) => {
+        ClosureCallOptions::EnumDispatch(repr) => match repr {
+            EnumDispatch::Bool => {
                 let closure_tag_id_symbol = closure_data_symbol;
 
                 lowlevel_enum_lambda_set_to_switch(
@@ -9238,7 +9222,7 @@ where
                     hole,
                 )
             }
-            Layout::Builtin(Builtin::Int(IntWidth::U8)) => {
+            EnumDispatch::U8 => {
                 let closure_tag_id_symbol = closure_data_symbol;
 
                 lowlevel_enum_lambda_set_to_switch(
@@ -9254,7 +9238,6 @@ where
                     hole,
                 )
             }
-            other => internal_error!("Unexpected multi-dispatch layout: {:?}", other),
         },
     }
 }
@@ -9439,8 +9422,8 @@ fn match_on_lambda_set<'a>(
                 hole,
             )
         }
-        ClosureCallOptions::MultiDispatch(layout) => match layout {
-            Layout::Builtin(Builtin::Bool) => {
+        ClosureCallOptions::EnumDispatch(repr) => match repr {
+            EnumDispatch::Bool => {
                 let closure_tag_id_symbol = closure_data_symbol;
 
                 enum_lambda_set_to_switch(
@@ -9455,7 +9438,7 @@ fn match_on_lambda_set<'a>(
                     hole,
                 )
             }
-            Layout::Builtin(Builtin::Int(IntWidth::U8)) => {
+            EnumDispatch::U8 => {
                 let closure_tag_id_symbol = closure_data_symbol;
 
                 enum_lambda_set_to_switch(
@@ -9470,7 +9453,6 @@ fn match_on_lambda_set<'a>(
                     hole,
                 )
             }
-            other => internal_error!("Unexpected multi-dispatch layout: {:?}", other),
         },
     }
 }
